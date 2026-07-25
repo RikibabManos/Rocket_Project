@@ -1,7 +1,5 @@
 import numpy as np
-import math
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from Environment import get_atmosphere
 from Environment import mass
@@ -176,7 +174,7 @@ def get_MoI(dry_mass, fuel_mass, diameter, rocket_height, fuel_height, total_CoG
 # THE CORE DERIVATIVE FUNCTION
 # ---------------------------------------------------------
 
-def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, dt, pitch_pid, yaw_pid):
+def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, pitch_angle, yaw_angle):
     """ Takes the current state array and returns the rates of change. """
 
     # unpack the state vector for readability
@@ -207,14 +205,6 @@ def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, dt, pitch_pi
     rocket_long_axis_direc_eci = body_to_ecif(body_long_axis, q) # long axis direction of rocket converted to the ecif 
 
     # --- THRUST VECTOR ---
-    #  PID controller for pitch and yaw angles
-    up_eci = position / np.linalg.norm(position) # unit radial vector, in rocket's perspective this always points straight 'up', hence is 'target'
-    up_body = ecif_to_body(up_eci, q) #  convert target to rocket's body frame
-    yaw_error = np.arctan2(up_body[1], up_body[0])   # Deviation in the XY plane (v_y, v_x)
-    pitch_error = np.arctan2(up_body[2], up_body[0]) # Deviation in the XZ plane (v_z, v_x)
-
-    pitch_angle = pitch_pid.correction(pitch_error, dt)
-    yaw_angle = yaw_pid.correction(yaw_error, dt)
 
     thrust_direc_bf = np.array([ ( np.cos(pitch_angle) * np.cos(yaw_angle) ), ( np.sin(yaw_angle) ), ( np.sin(pitch_angle) * np.cos(yaw_angle) ) ])
     thrust_direc_bf = thrust_direc_bf / np.linalg.norm(thrust_direc_bf) # normalise to remove effect float point errors
@@ -292,7 +282,7 @@ def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, dt, pitch_pi
     # take anticlockwise as positive
 
     # thrust
-    thrust_lever_bf = bottom_to_tank - total_CoG
+    thrust_lever_bf = thruster_height - total_CoG
     thrust_torque = np.cross(thrust_lever_bf, (thrust_mag * thrust_direc_bf) )
 
     # aerodynamic
@@ -357,10 +347,10 @@ def RK4_new_state(t, state, dt, mfr, dry_mass, fuel_max, v_wind, pitch, yaw):
 
     #print(f"Before RK4 calc: Dry mass = {dry_mass}, state mass = {state[13]}")
     #print(f"The mfr is: {mfr_adjusted} and the initial was {mfr}") # debugging code
-    k1 = get_derivatives(t, state, mfr_adjusted, dry_mass, fuel_max, v_wind, dt, pitch, yaw)
-    k2 = get_derivatives( ( t + dt / 2 ) , ( state + ( (dt * k1) / 2) ), mfr_adjusted, dry_mass, fuel_max, v_wind, dt, pitch, yaw )
-    k3 = get_derivatives( ( t + dt / 2 ) , ( state + ( (dt * k2) / 2) ), mfr_adjusted, dry_mass, fuel_max, v_wind, dt, pitch, yaw )
-    k4 = get_derivatives( t + dt , ( state +  (dt * k3) ), mfr_adjusted, dry_mass, fuel_max, v_wind, dt, pitch, yaw )
+    k1 = get_derivatives(t, state, mfr_adjusted, dry_mass, fuel_max, v_wind, pitch, yaw)
+    k2 = get_derivatives( ( t + dt / 2 ) , ( state + ( (dt * k1) / 2) ), mfr_adjusted, dry_mass, fuel_max, v_wind, pitch, yaw )
+    k3 = get_derivatives( ( t + dt / 2 ) , ( state + ( (dt * k2) / 2) ), mfr_adjusted, dry_mass, fuel_max, v_wind, pitch, yaw )
+    k4 = get_derivatives( t + dt , ( state +  (dt * k3) ), mfr_adjusted, dry_mass, fuel_max, v_wind, pitch, yaw )
 
     new_state = state + ( ( dt / 6 ) * ( k1 + ( 2 * k2 ) + ( 2 * k3 ) + k4 ) )
     #print(f"After RK4 calc: Dry mass = {dry_mass}, state mass = {new_state[13]}")
