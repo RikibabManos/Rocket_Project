@@ -8,7 +8,7 @@ This simulation does not rely on simplified 2D physics or pre-baked trajectories
   
 2. Visual Proof of Control: Significant Wind Shear Event
 
-![Mission Control Telemetry](max_q_windshear_stabilization.gif
+![Mission Control Telemetry](max_q_windshear_stabilization.gif)
 
 The Edge Case: A physics engine is only as good as its control system. The telemetry dashboard above demonstrates the flight computer actively fighting a chaotic disturbance. Ten seconds after launch, the simulation injects a ~200 m/s lateral wind-shear event (190m/s and -80m/s in the x and y directions respectively).
 
