@@ -12,9 +12,9 @@ This simulation does not rely on simplified 2D physics or pre-baked trajectories
 
 The Edge Case: A physics engine is only as good as its control system. The telemetry dashboard above demonstrates the flight computer actively fighting a chaotic disturbance. Ten seconds after launch, the simulation injects a ~200 m/s lateral wind-shear event (190m/s and -80m/s in the x and y directions respectively).
 
-You can watch the PID controller instantly calculate the pitch/yaw error and command the engine nozzle to gimbal, generating the exact restorative torque needed to prevent the rocket from tumbling and keep the ascent vector perfectly radial to the Earth.
+You can watch the PID controller instantly calculate the pitch/yaw error and command the engine nozzle to gimbal, generating the exact restorative torque needed to prevent the rocket from tumbling and keep the ascent vector near-perfectly radial to the Earth.
 
-3. Interpretation and Usage
+3. Interpretation of Dashboard
 The Python-based Mission Control dashboard reads the telemetry data and provides real-time situational awareness of the vehicle:
 
 -Left Panel (3D Trajectory): Displays the Earth (scaled as an oblate spheroid) and the ECI trajectory of the vehicle.
@@ -24,4 +24,15 @@ The Python-based Mission Control dashboard reads the telemetry data and provides
 -Top Right (Attitude Indicator): A localized ENU (East-North-Up) frame showing exactly how the nose of the rocket is oriented relative to "straight up."
 
 -Bottom Right (TVC Gimbal Angle): A live plot of the engine's pitch and yaw gimbal angles. Spikes in this graph indicate the PID controller actively fighting aerodynamic flipping torques.
+
+-IDE Terminal: A live feed of quantities crutial to track (Time, Fuel Mass, Total Mass and Altitude)
+
+4. Usage of Code
+Important to run code correctly!
+
+-Make sure all .py files are in the same folder
+
+-Replace the two .cvs file paths on lines 24 and 37 of State_variable.py to match those on your device
+
+-Alter constants in the respective sections of State_variable.py and visual_display.py to fit your needs
 
