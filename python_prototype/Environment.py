@@ -14,30 +14,22 @@ m_max_fuel = m_rocket / 0.95
 A_EQ = 6378137.0         # Equatorial radius
 B_POL = 6356752.314245   # Polar radius
 
-def mass(time):
-    # use a linear decrease for now just for simplicity
-    gradient = 10000 # 1000kg/s of fuel burned
-    total_mass =  m_rocket + ( m_max_fuel - time * gradient ) 
-    if total_mass >= m_rocket:
-        return total_mass
-    else:
-        return m_rocket
-    
 \
 
 def get_earth_radius(position):
+
     """ Calculates the exact radius of the Earth in the direction of the given ECI position vector. """
-    # 1. Calculate the distance from the center of the Earth
+
+    # calculate the distance from the center of the Earth
     dist = np.linalg.norm(position)
     
-    # Safety check: prevent division by zero if at the exact center of the Earth
+    # prevent division by zero if at the exact center of the Earth
     if dist == 0:
         return 0.0
         
-    # 2. Normalize the position vector to get the pure direction (ux, uy, uz)
-    u = position / dist
+    u = position / dist    # normalize the position vector to get the pure direction (ux, uy, uz)
     
-    # 3. Calculate the radius using the oblate spheroid equation
+    # calculate the radius using the oblate spheroid equation
     term1 = (u[0]**2 + u[1]**2) / (A_EQ**2)
     term2 = (u[2]**2) / (B_POL**2)
     
@@ -58,23 +50,27 @@ def get_true_altitude(position):
 
 \
 
-def grav_acc(position, t):
+def grav_acc(position):
+
+    """ Function that returns gravitational acceleration at a given position """
     # position should be a numpy array: np.array([x, y, z])
     distance = np.linalg.norm(position)
     
-    # Normalized vector pointing toward the origin (Earth's center)
+    # normalized vector pointing toward the origin (Earth's center)
     direction_vec_grav = -position / distance
     
-    # Force of gravity vector
+    # force of gravity vector
     return (MU / (distance**2)) * direction_vec_grav
 
 \
 
-def get_atmosphere(alt): # may be more useful to change this to a function of just position insteaad of altitude later on
+def get_atmosphere(alt):
 
-    # VACUUM CUTOFF: Above 85,000 meters, air density is negligible.
+    """ Function returning properties of the atmosphere at the current altitude """
+
+    # VACUUM CUTOFF: Above 85,000 meters air density is negligible
     if alt > 85000:
-        return 0.0, 0.0, -273.15  # Return density, pressure, and absolute zero temp
+        return 0.0, 0.0, -273.15  # return density, pressure, and absolute zero temp
         
     # uses https://www.grc.nasa.gov/www/k-12/airplane/atmosmet.html
     # temperature in deg C, pressure in KPa
@@ -90,8 +86,8 @@ def get_atmosphere(alt): # may be more useful to change this to a function of ju
         temperature = -131.21 + (0.00299 * alt)
         pressure = 2.488 * (((temperature + 273.1) / 216.6) ** -11.388)
 
-    # Calculate density (kg/m^3)
+    # calculate density (kg/m^3)
     density = pressure / (0.2869 * (temperature + 273.1))
     
-    # Return all three atmospheric properties 
+    # return all three atmospheric properties 
     return density, pressure, temperature

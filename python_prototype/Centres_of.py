@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 from Coeff_fitting import binary_search_array as bsa
 from Coeff_fitting import lerp
 
@@ -10,12 +9,12 @@ def get_CoG_fuel_bf(tank_height, rocket_bottom_to_tank, current_fuel_mass, max_f
     """ This function returns the CoG of the fuel only in the rocket body frame """
 
     # work out height of fuel in container currently, tank_height is the hight of the tank occupied by fuel at launch
-    # assume buffers occupy negligible volume (assumption must be evaluated later!!!!!!!!!!!!!)
+    # assume that any buffers occupy negligible volume
     
-    fuel_density = max_fuel_mass / tank_height # no CSA accounted for as will cancel out in the next line
+    fuel_density = max_fuel_mass / tank_height                  # no CSA accounted for as will cancel out in the next line
     current_fuel_height = ( current_fuel_mass / fuel_density )
-    CoG = rocket_bottom_to_tank + ( current_fuel_height / 2) # assuming density is isotropic
-    CoG_vec = np.array([float(CoG), 0, 0]) # assuming sloshing is negligible, CoG lies along rockets long axis, assuming tank is axi-symmetric
+    CoG = rocket_bottom_to_tank + ( current_fuel_height / 2)    # assuming density is isotropic
+    CoG_vec = np.array([float(CoG), 0, 0])                      # assuming sloshing is negligible, CoG lies along rockets long axis, assuming tank is axi-symmetric
 
     return CoG_vec # returns a numpy array, instead of a list, to work better with calculations
 
@@ -32,105 +31,53 @@ def get_CoG_total(dry_mass, CoG_dry_bf, fuel_mass, CoG_fuel_bf):
 
 \
 
-#def get_CoP(mach_num, aoa, mach_numbers, aoa_values, coeff_matrix, rocket_height):
-
-#    """ Function returning Centre of Pressure of the rocket at a given point in time, based on mach number and angle of attack, in rocket body frame """
-    # note that mach_num if the relative speed of the rocket normalised by sos
-
-    # Ensure the input values never exceed the min/max limits of your CSV tables, makes it so extreme values are just set the the ends of the table
-#    mach_num = np.clip(mach_num, mach_numbers[0], mach_numbers[-1])
-#    aoa = np.clip(aoa, aoa_values[0], aoa_values[-1])
-
-#    mach_index_range = bsa(mach_num, mach_numbers)
-#    aoa_index_range = bsa(aoa, aoa_values)
-
-    # Extract base indices
-#    mach_idx1 = mach_index_range[0]
-#    aoa_idx1 = aoa_index_range[0]
-
-    # --- SAFETY INDEX CLAMPING ---
-    # Guarantees that (idx + 1) can never exceed the maximum valid table index
-#    max_mach_idx = len(mach_numbers) - 1
-#    max_aoa_idx = len(aoa_values) - 1
-
-#    mach_idx1 = min(max(0, mach_idx1), max_mach_idx - 1)
-#    aoa_idx1 = min(max(0, aoa_idx1), max_aoa_idx - 1)
-
-#    mach_idx2 = mach_idx1 + 1
-#    aoa_idx2 = aoa_idx1 + 1
-
-    # extract physical values for the denominators 
-#    m1, m2 = mach_numbers[mach_idx1], mach_numbers[mach_idx2]
-#    a1, a2 = aoa_values[aoa_idx1], aoa_values[aoa_idx2]
-
-    # nearest 4 coefficients
-#    C_11 = coeff_matrix[aoa_idx1][mach_idx1] # Bottom-Left
-#    C_21 = coeff_matrix[aoa_idx2][mach_idx1] # Top-Left
-#    C_12 = coeff_matrix[aoa_idx1][mach_idx2] # Bottom-Right
-#    C_22 = coeff_matrix[aoa_idx2][mach_idx2] # Top-Right
-
-    # apply linear interpolation across AoA at the lower Mach boundary
-#    R1 = lerp(aoa, a1, a2, C_11, C_21)
-
-#    # apply linear interpolation across AoA at the upper Mach boundary
-#    R2 = lerp(aoa, a1, a2, C_12, C_22)
-
-#    # apply final interpolation to new R points across the Mach number (Fixes Bug #3)
-#    R3 = lerp(mach_num, m1, m2, R1, R2)
-#
-#    # table calculates CoP from the tip of the rocket
-#    CoP = rocket_height - R3
-#    CoP_vector = np.zeros(3)
-#    CoP_vector[0] = CoP
-
-#    return CoP_vector
-
 def get_CoP(mach_num, aoa, mach_numbers, aoa_values, coeff_matrix, rocket_height):
-    """ Function returning Centre of Pressure of the rocket at a given point in time, based on mach number and angle of attack, in rocket body frame """
+
+    """ Function returning the current CoP of the rocket, based on mach number and angle of attack, in rocket body frame """
     
-    # 1. Ensure input values never exceed the min/max limits of your CSV tables
+    # ensure input values never exceed the min/max limits of .csv tables
     mach_num = np.clip(mach_num, mach_numbers[0], mach_numbers[-1])
     aoa = np.clip(aoa, aoa_values[0], aoa_values[-1])
 
     mach_index_range = bsa(mach_num, mach_numbers)
     aoa_index_range = bsa(aoa, aoa_values)
 
-    # Extract base indices
+    # extract base indices
     mach_idx1 = mach_index_range[0]
     aoa_idx1 = aoa_index_range[0]
 
-    # 2. --- BULLETPROOF INDEX CLAMPING ---
-    # Read the exact dimensions directly from the matrix shape (Rows = AoA, Cols = Mach)
+    # 2. --- INDEX CLAMPING ---
+    # read the exact dimensions directly from the matrix shape (Rows = AoA, Cols = Mach)
     num_aoa_rows, num_mach_cols = coeff_matrix.shape
 
-    # Force base indices to stop at least 1 step before the matrix edge
+    # force base indices to stop at least 1 step before the matrix edge
     aoa_idx1 = min(max(0, aoa_idx1), num_aoa_rows - 2)
     mach_idx1 = min(max(0, mach_idx1), num_mach_cols - 2)
 
-    # Define safe upper bounds for interpolation
+    # define safe upper bounds for interpolation
     aoa_idx2 = aoa_idx1 + 1
     mach_idx2 = mach_idx1 + 1
 
-    # Extract physical values for the denominators 
+    # extract physical values for the denominators 
     m1, m2 = mach_numbers[mach_idx1], mach_numbers[mach_idx2]
     a1, a2 = aoa_values[aoa_idx1], aoa_values[aoa_idx2]
 
-    # Nearest 4 coefficients (Guaranteed safe from out-of-bounds errors)
+    # nearest 4 coefficients
     C_11 = coeff_matrix[aoa_idx1][mach_idx1] # Bottom-Left
     C_21 = coeff_matrix[aoa_idx2][mach_idx1] # Top-Left
     C_12 = coeff_matrix[aoa_idx1][mach_idx2] # Bottom-Right
     C_22 = coeff_matrix[aoa_idx2][mach_idx2] # Top-Right
 
-    # Apply linear interpolation across AoA at the lower Mach boundary
+    # apply linear interpolation across AoA at the lower Mach boundary
     R1 = lerp(aoa, a1, a2, C_11, C_21)
 
-    # Apply linear interpolation across AoA at the upper Mach boundary
+    # apply linear interpolation across AoA at the upper Mach boundary
     R2 = lerp(aoa, a1, a2, C_12, C_22)
 
-    # Apply final interpolation to new R points across the Mach number
+    # apply final interpolation to new R points across the Mach number
     R3 = lerp(mach_num, m1, m2, R1, R2)
 
-    # Table calculates CoP from the tip of the rocket
+    # table calculates CoP from the tip of the rocket
     CoP = rocket_height - R3
     CoP_vector = np.zeros(3)
     CoP_vector[0] = CoP

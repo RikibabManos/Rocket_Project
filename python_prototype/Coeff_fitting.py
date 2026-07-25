@@ -1,18 +1,3 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-
-#the cvs file must statisfy following conditions
-# a header row that will be ingnored
-# the columns must be arranged in the following order: mach number, cd values, cn values
- 
-#aero_table = np.loadtxt('gemini_saturn_v_coeff.csv', delimiter=',', skiprows=1)
-
-# Now aero_table is a pure 2D math matrix
-#mach_numbers = aero_table[:, 0]  
-#cd_values = aero_table[:, 1]     
-#cn_values = aero_table[:, 2]     
-
 def lerp(x, x0, x1, y0, y1):
     """ Function for 1D Linear Interpolation """
     # Prevent Division by Zero if the target falls exactly on a grid line
@@ -29,7 +14,7 @@ def binary_search_array(value, array):
 
     length = len(array)
     
-    # consdier edge cases first, set to boundry coeff values for simplicity (for now)
+    # consdier edge cases first (set to boundry coeff values for simplicity)
 
     if value <= array[0]:
         return 0, 0
@@ -45,7 +30,7 @@ def binary_search_array(value, array):
         right = len(array) - 1
 
         while left <= right:
-            mid = (left + right) // 2 # Integer division
+            mid = (left + right) // 2 
         
             if array[mid] == value:
                 return mid, mid
@@ -60,8 +45,9 @@ def binary_search_array(value, array):
 \
 
 def get_coeff_value(mach_num, array_mn, array_coeff):
-    # !!!IMPORTANT!!! Note that the C_n values are actually given as a gradient per unit radian
-    # note that currently doesn't account for angle of attack
+
+    """ Function retuning the approximate value of a cn/ cd coefficient based off current mach number """
+
     # uses linear interpolation if speed is not in table
     index_range = binary_search_array(mach_num, array_mn)
 
@@ -69,13 +55,13 @@ def get_coeff_value(mach_num, array_mn, array_coeff):
     idx0 = index_range[0]
     idx1 = index_range[1]
 
-    # extract the exact physical X (Mach) and Y (Coefficient) values
+    # extract the exact physical X and Y values
     x0 = array_mn[idx0]
     x1 = array_mn[idx1]
     y0 = array_coeff[idx0]
     y1 = array_coeff[idx1]
 
-    # use the helper function to calculate and return the interpolated value
+    # use lerp function to calculate and return the interpolated value
     coeff = lerp(mach_num, x0, x1, y0, y1)
     
     return coeff

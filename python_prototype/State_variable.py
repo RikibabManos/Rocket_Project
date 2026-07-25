@@ -2,36 +2,35 @@ import numpy as np
 import pandas as pd
 
 from Environment import get_atmosphere
-from Environment import mass
-from Environment import get_earth_radius
 from Environment import get_true_altitude
 from Environment import grav_acc
 
-from Coeff_fitting import binary_search_array
 from Coeff_fitting import get_coeff_value
 
 from Centres_of import get_CoG_fuel_bf
 from Centres_of import get_CoG_total
 from Centres_of import get_CoP
 
-from PID_controller import PID_controller as pidc
-
 \
 
-# cvs file for cd and cn data goes here:
+# --- .CVS FILES ---
 
-# the cvs file must statisfy following conditions
-# a header row that will be ingnored
+# first .cvs file is for Forebody (cd) and Normal (cn) axial coefficients at certain Mach numbers
+# the .cvs file must statisfy following conditions
+# a header row (that will be ingnored)
 # the columns must be arranged in the following order: mach number, cd values, cn values
+# note that cn values must be per radian (based off angle of attack)
 
-df = pd.read_csv(r"C:\Codes\Rocket_project\coeff_cvs\gemini_saturn_v_coeff.csv")
+df = pd.read_csv(
+    r"C:\Codes\Rocket_project\coeff_cvs\gemini_saturn_v_coeff.csv"
+    )
+
 aero_table = df.to_numpy()
-
 mach_numbers_aero = aero_table[:, 0]  
 cd_values = aero_table[:, 1]     
 cn_values = aero_table[:, 2]     
 
-# importing the .csv file containing CoP data for a given rocket
+# second .csv file containing Centre of Pressure (CoP) data for a given rocket
 # must be arranged in following columns: Mach number, CoP @ alpha rad, CoP @ beta rad...
 # very important that the headings for the different aoa are the aoa values in radians
 
@@ -40,38 +39,37 @@ df = pd.read_csv(
     index_col = 0
     ) 
 
-mach_numbers_CoP = df.index.to_numpy() # mach numbers data into an array without heading
+mach_numbers_CoP = df.index.to_numpy()           # mach numbers data into an array without heading
 aoa_values = df.columns.astype(float).to_numpy() # aoa values extracted from headers 
-coeff_matrix = df.to_numpy() # CoP values 
-
-#print("Mach Numbers:", mach_numbers)
-#print("AoA Values:", aoa_values)
-#print("Coefficient Matrix:", coeff_matrix)
+coeff_matrix = df.to_numpy()                     # CoP values 
 
 \
 
-# Constants
+# --- CONSTANTS ---
 
-# Precomputed Earth Standard Gravitational Parameter (m^3/s^2)
-MU = 3.986004418e14 
+# General
+A_EQ = 6378137.0       # Equatorial radius, WGS84 Earth reference ellipsoid constants (in meters)
+B_POL = 6356752.314245 # Polar radius, WGS84 Earth reference ellipsoid constants (in meters)
+MU = 3.986004418e14    # Precomputed Earth Standard Gravitational Parameter (m^3/s^2)
+P_ATM = 101.325        # Kilo-Pascals (standard sea level pressure)
+G0 = 9.80665           # gravitational acceleration on earth's surface
 
-# WGS84 Earth reference ellipsoid constants (in meters)
-A_EQ = 6378137.0         # Equatorial radius
-B_POL = 6356752.314245   # Polar radius
+# Rocket Specific
 
-# Constants for the SpaceX Merlin 1D Engine (example)
-ISP_SL = 282.0   # seconds
-ISP_VAC = 311.0  # seconds
+# Specific impules (Example used: SpaceX Merlin 1D Engine)
+ISP_SL = 282.0   # seconds, at sea level
+ISP_VAC = 311.0  # seconds, in a vacuum
 
-P_ATM = 101.325 # Kilo-Pascals (standard sea level pressure)
-G0 = 9.80665 # gravitational acceleration on earth's surface
-d = 10.06 # diameter, of Saturn V, in meters
-CSA = d **2 * np.pi * .25 # based off Saturn V reference diameter
-total_rocket_height = 110.6 # bottom to tip height of rocket, taken from Saturn V, in meters
-fuel_tank_height = 32.6 # approximate value for Saturn V, in meters
-bottom_to_tank = 5.94 # approximate distance from bottom of rocket to bottom of fuel tank, in Saturn V for example data, in meters
-thruster_height = np.array([5.92, 0.0, 0.0]) # distance from bottom of rocket to exit of fuel
-dry_CoG = np.array( [41.0, 0.0, 0.0] ) # approcimate CoG distance vector from bottom of dry rocket, in meters, in rocket bf
+d = 10.06                                    # max cone diameter, in meters (Example used: Saturn V)
+total_rocket_height = 110.6                  # bottom to tip height of rocket, in meters (Example used: Saturn V)
+fuel_tank_height = 32.6                      # total length of fuel tank, in meters (Example used: Saturn V)
+bottom_to_tank = 5.94                        # approximate distance from bottom of rocket to bottom of fuel tank, in meters (Example used: Saturn V)
+thruster_height = np.array([5.92, 0.0, 0.0]) # distance from bottom of rocket to fuel exit, in rocket body frame (Example used: Saturn V)
+dry_CoG = np.array( [41.0, 0.0, 0.0] )       # approcimate CoG distance vector from bottom of dry rocket, in meters, in rocket bf (Example used: Saturn V)
+aoa_initial = 0.0                            # angle of attack on launchpad, in radians
+CSA = d **2 * np.pi * .25                    # based off given diameter
+
+\
 
 def get_dry_CoM_dist_centre(distance):
     
@@ -84,7 +82,7 @@ def get_current_isp(altitude):
     _, pressure, _ = get_atmosphere(altitude) # in kPa
     
     # Interpolate I_sp based on the pressure ratio assuming linear model
-    current_isp = ISP_VAC + (ISP_SL - ISP_VAC) * (pressure / P_ATM) # ISP_SL stands for Specific Impulse at Sea Level
+    current_isp = ISP_VAC + (ISP_SL - ISP_VAC) * (pressure / P_ATM) 
     
     return current_isp
 
@@ -98,7 +96,7 @@ def body_to_ecif(body_vector, orientation): # note orientation must be in quater
 
     """ Function returns a vector in the ecif from the rockets body frame """
 
-    orientation = orientation / np.linalg.norm(orientation) # make sure is normalised (float point errors)
+    orientation = orientation / np.linalg.norm(orientation) # make sure is normalised (avoid float point errors)
     q0 = orientation[0]
     q1 = orientation[1]
     q2 = orientation[2]
@@ -111,7 +109,7 @@ def body_to_ecif(body_vector, orientation): # note orientation must be in quater
         [ 2 * ( (q1 * q3) - (q0 * q2) ), 2 * ( (q2 * q3) + (q0 * q1) ), ( 1 - ( 2 * ( (q1 ** 2) + (q2 ** 2) ) ) ) ]
     ])
 
-    new_frame = L @ body_vector # matrix mult
+    new_frame = L @ body_vector 
 
     return new_frame
 
@@ -131,7 +129,7 @@ def ecif_to_body(eci_vector, orientation):
         [ 2 * ( (q1 * q3) - (q0 * q2) ), 2 * ( (q2 * q3) + (q0 * q1) ), ( 1 - ( 2 * ( (q1 ** 2) + (q2 ** 2) ) ) ) ]
     ])
 
-    new_frame = np.transpose(L) @ eci_vector # matrix mult
+    new_frame = np.transpose(L) @ eci_vector
 
     return new_frame
 
@@ -170,32 +168,32 @@ def get_MoI(dry_mass, fuel_mass, diameter, rocket_height, fuel_height, total_CoG
     
     return MoI_tensor_total
 
-# ---------------------------------------------------------
-# THE CORE DERIVATIVE FUNCTION
-# ---------------------------------------------------------
+\
+
+# --------------------------------------------------------
+# ------------- THE CORE DERIVATIVE FUNCTION -------------
+# --------------------------------------------------------
 
 def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, pitch_angle, yaw_angle):
-    """ Takes the current state array and returns the rates of change. """
 
-    # unpack the state vector for readability
-    position = state[0:3]
-    velocity = state[3:6]
-    q = state[6:10]      # q[0] is scalar, q[1:4] are vector
-    omega = state[10:13] # angular velocity
-    m = state[13]
+    """ Takes the current state array and returns the rates of change """
+
+    # unpack the state vector
+    position = state[0:3] # this is the instantaneous position of the total CoG in the ecif
+    velocity = state[3:6] # of total CoG in ecif
+    q = state[6:10]       # q[0] is scalar, q[1:4] are vector
+    omega = state[10:13]  # angular velocity
+    m = state[13]         # mass
 
     fuel_mass = m - dry_mass
-    # the physical length of the fuel column currently in the tank
-    actual_fuel_length = fuel_tank_height * (fuel_mass / fuel_mass_max)
-
-    # debugging mass
-    #print(m)
+    actual_fuel_length = fuel_tank_height * (fuel_mass / fuel_mass_max) # the physical length of the fuel column currently in the tank
 
     # initialize the array that will hold our output derivatives
     state_dot = np.zeros(14)
     
     # --- TRANSLATIONAL KINEMATICS ---
-    # the derivative of position is simply the current velocity
+
+    # the derivative of position is the current velocity
     state_dot[0:3] = velocity
 
     altitude = get_true_altitude(position)
@@ -204,25 +202,24 @@ def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, pitch_angle,
     body_long_axis = np.array([1, 0, 0]) 
     rocket_long_axis_direc_eci = body_to_ecif(body_long_axis, q) # long axis direction of rocket converted to the ecif 
 
-    # --- THRUST VECTOR ---
-
+    # thrust vector analysis
     thrust_direc_bf = np.array([ ( np.cos(pitch_angle) * np.cos(yaw_angle) ), ( np.sin(yaw_angle) ), ( np.sin(pitch_angle) * np.cos(yaw_angle) ) ])
     thrust_direc_bf = thrust_direc_bf / np.linalg.norm(thrust_direc_bf) # normalise to remove effect float point errors
     thrust_direc_eci = body_to_ecif(thrust_direc_bf, q)
     thrust_mag = mfr * isp * G0
     thrust_force_eci = thrust_mag * thrust_direc_eci
     
-    # gravitational force in ECI
-    grav_force_eci = grav_acc(position, t) * m # inherently has a negative direction
+    # gravitational force in ecif
+    grav_force_eci = grav_acc(position) * m # inherently has a negative direction
     
     # aerodynamic forces
 
-    altitude_const = .5 * get_current_density(altitude) * CSA 
+    altitude_const = .5 * get_current_density(altitude) * CSA # constant common to Lift and Drag force calculations
 
-    v_rel = velocity - v_wind
+    v_rel = velocity - v_wind # velocity of wind relative to rocket
     v_rel_mag = np.linalg.norm(v_rel)
 
-    if v_rel_mag > 0: # avoid any div-by-zero errors (specifically at start)
+    if v_rel_mag > 0: # to avoid any div-by-zero errors (specifically at start)
 
         v_rel_direc = v_rel / v_rel_mag
         _, _, temperature =  get_atmosphere(altitude)
@@ -232,16 +229,16 @@ def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, pitch_angle,
             v_rel_mag_mach = 0 # this avoides the div by zero error for high altitudes causing temperature --> 0
         else:
             v_sound = np.sqrt( 1.4 * 287.05 * temperature ) # speed of sound varies with altitude
-            v_rel_mag_mach = v_rel_mag / v_sound # coverting to mach number
+            v_rel_mag_mach = v_rel_mag / v_sound            # coverting to mach number
 
         drag_force_eci = -altitude_const * v_rel_mag * v_rel * get_coeff_value(v_rel_mag_mach, mach_numbers_aero, cd_values) 
 
         cos_aoa = np.clip( np.dot(rocket_long_axis_direc_eci, v_rel_direc), -1.0, 1.0 ) # np.clip used so that no floating point errors from python cause value to have a mag > 1.0
-        aoa = np.arccos(cos_aoa) # note np.arccos give radians
-        aoa = np.clip(aoa, 0.0, np.pi / 2) # Prevent AoA from exceeding the maximum bounds of your 0 to 90 degree lookup table
+        aoa = np.arccos(cos_aoa)                                                        # note np.arccos gives unit in radians
+        aoa = np.clip(aoa, 0.0, np.pi / 2)                                              # Prevent aoa from exceeding the maximum bounds of 0 to 90 degree lookup table
 
         lift_force_mag = altitude_const * (v_rel_mag ** 2) * ( get_coeff_value(v_rel_mag_mach, mach_numbers_aero, cn_values) * aoa) # multiply by aoa as cn is given as a gradient per radian
-        lift_force_resolved = rocket_long_axis_direc_eci - ( cos_aoa * v_rel_direc) # this is the vector that points in the direction of the lift force, but it is NOT normalised
+        lift_force_resolved = rocket_long_axis_direc_eci - ( cos_aoa * v_rel_direc)                                                 # this is the vector that points in the direction of the lift force, but it is NOT normalised
         lift_force_resolved_mag = np.linalg.norm(lift_force_resolved)
 
         if lift_force_resolved_mag < 1e-8: # if rocket orientated directly up (relative to earth), lift force is zero, have small value to avoid float point errors
@@ -254,11 +251,11 @@ def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, pitch_angle,
     else:
         lift_force_eci = np.zeros(3)
         drag_force_eci = np.zeros(3)
-        v_rel_mag_mach = 0.0  # velocity at launch = 0
-        aoa = 0.0             # aoa at launch
+        v_rel_mag_mach = 0.0         # velocity at launch = 0
+        aoa = aoa_initial            # aoa at launch
 
     # Net Force and Acceleration
-    net_force_eci = thrust_force_eci + grav_force_eci + drag_force_eci + lift_force_eci
+    net_force_eci = thrust_force_eci + grav_force_eci + drag_force_eci + lift_force_eci # Newton's 2nd Law, can be used directly as vectors are in an inertial frame
     acceleration_eci = net_force_eci / m
     
     # The derivative of velocity is acceleration
@@ -266,14 +263,14 @@ def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, pitch_angle,
     
     # --- ROTATIONAL KINEMATICS ---
 
-    # firstly, calculate moment arm
+    # firstly, calculate moment arms
     
     CoP = get_CoP(v_rel_mag_mach, aoa, mach_numbers_CoP, aoa_values, coeff_matrix, total_rocket_height) # in rocket bf from bottom
     CoG_fuel_bf = get_CoG_fuel_bf(fuel_tank_height, bottom_to_tank, fuel_mass, fuel_mass_max)
     total_CoG = get_CoG_total(dry_mass, dry_CoG, fuel_mass, CoG_fuel_bf)
 
     lever_arm_bf = CoP - total_CoG
-
+    thrust_lever_bf = thruster_height - total_CoG
     # convert aerodynamic forces from ecif to rocket's bf, makes calculations easier as princlible axes can be used in bf
 
     drag_force_bf = ecif_to_body(drag_force_eci, q)
@@ -281,13 +278,10 @@ def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, pitch_angle,
 
     # take anticlockwise as positive
 
-    # thrust
-    thrust_lever_bf = thruster_height - total_CoG
-    thrust_torque = np.cross(thrust_lever_bf, (thrust_mag * thrust_direc_bf) )
-
-    # aerodynamic
+    # torques
     lift_torque = np.cross(lever_arm_bf, lift_force_bf)
     drag_torque = np.cross(lever_arm_bf, drag_force_bf)
+    thrust_torque = np.cross(thrust_lever_bf, (thrust_mag * thrust_direc_bf) )
 
     # resultant torque analysis
     MoI = get_MoI(dry_mass, fuel_mass, d, total_rocket_height, actual_fuel_length, total_CoG, dry_CoG, CoG_fuel_bf) # in rocket bf
@@ -297,7 +291,8 @@ def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, pitch_angle,
     ang_acc_vec = np.linalg.solve(MoI, net_torque_bf - gyro_term)
 
     state_dot[10:13] = ang_acc_vec # adjust to state vector 
-    
+
+    # angular velocity components
     wx = omega[0]
     wy = omega[1]
     wz = omega[2]
@@ -309,7 +304,7 @@ def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, pitch_angle,
         [wz, wy, -wx, 0]
     ])
 
-    state_dot[6:10] = .5 * ( omega_matrix @ q )
+    state_dot[6:10] = .5 * ( omega_matrix @ q ) # quaternion derivative
 
     # --- MASS KINEMATICS ---
     # The derivative of mass is the negative mass flow rate
@@ -317,43 +312,39 @@ def get_derivatives(t, state, mfr, dry_mass, fuel_mass_max, v_wind, pitch_angle,
     
     return state_dot
 
-# ---------------------------------------------------------
-# The RK4 integrator
-# ---------------------------------------------------------
+# --------------------------------------------------------
+# ------------------ THE RK4 INTEGRATOR ------------------
+# --------------------------------------------------------
 
 def RK4_new_state(t, state, dt, mfr, dry_mass, fuel_max, v_wind, pitch, yaw): 
 
-    # check how much fuel is left (in kg)
+    # check how much fuel is left
     fuel_mass_remaining = state[13] - dry_mass
 
-    # check how much fuel the engine can burn this frame (in kg) based off mfr
+    # check how much fuel the engine can burn this frame based off mfr
     fuel_needed_this_step = mfr * dt
 
     # calculate adjusted mass flow rate
     if fuel_mass_remaining <= 0.0:
-        # Tank is empty. Shut the engine down.
+        # fuel tank is empty, shut the engine down
         mfr_adjusted = 0.0
         
     elif fuel_mass_remaining < fuel_needed_this_step:
-        # Not enough fuel for a full time step. 
-        # Set mfr so we burn EXACTLY what is left over the duration of 'dt'
+        # not enough fuel for a full time step. 
+        # set mfr so we burn EXACTLY what is left over the duration of 'dt'
         mfr_adjusted = fuel_mass_remaining / dt
         
     else:
-        # Plenty of fuel. Run at normal throttle.
+        # plenty of fuel, run at normal throttle
         mfr_adjusted = mfr
 
-    # main RK4
-
-    #print(f"Before RK4 calc: Dry mass = {dry_mass}, state mass = {state[13]}")
-    #print(f"The mfr is: {mfr_adjusted} and the initial was {mfr}") # debugging code
+    # --- MAIN RK4 ---
     k1 = get_derivatives(t, state, mfr_adjusted, dry_mass, fuel_max, v_wind, pitch, yaw)
     k2 = get_derivatives( ( t + dt / 2 ) , ( state + ( (dt * k1) / 2) ), mfr_adjusted, dry_mass, fuel_max, v_wind, pitch, yaw )
     k3 = get_derivatives( ( t + dt / 2 ) , ( state + ( (dt * k2) / 2) ), mfr_adjusted, dry_mass, fuel_max, v_wind, pitch, yaw )
     k4 = get_derivatives( t + dt , ( state +  (dt * k3) ), mfr_adjusted, dry_mass, fuel_max, v_wind, pitch, yaw )
 
     new_state = state + ( ( dt / 6 ) * ( k1 + ( 2 * k2 ) + ( 2 * k3 ) + k4 ) )
-    #print(f"After RK4 calc: Dry mass = {dry_mass}, state mass = {new_state[13]}")
 
     fuel_mass_remaining = new_state[13] - dry_mass # for mission control
     altitude = get_true_altitude(new_state[0:3])
