@@ -1,2 +1,6 @@
-# Rocket_Project
-Phys project
+6-DOF Flight Dynamics & Control Simulator
+A high-fidelity, 6-Degrees-of-Freedom (6-DOF) launch vehicle simulator written and visualized in Python. This project models the ascent profile of a single-stage rocket, integrating rigid-body rotational kinematics, shifting centers of mass, and active Thrust Vector Control (TVC) to stabilize the vehicle against extreme aerodynamic disturbances.
+1. The Core Physics & Mathematical FrameworkThis simulation does not rely on simplified 2D physics or pre-baked trajectories. Every microsecond of flight is calculated dynamically using a custom physics engine:
+- The Math (RK4 Integration): The core engine solves a 14-variable state vector $\mathbf{Y} = [x, y, z, v_x, v_y, v_z, q_0, q_1, q_2, q_3, \omega_x, \omega_y, \omega_z, m]$ using a 4th-Order Runge-Kutta (RK4) numerical integrator.
+- The Geometry (Quaternions over Euler Angles): Rotational kinematics are handled entirely via quaternions to absolutely eliminate Gimbal Lock during vertical ascent. The Direction Cosine Matrix (DCM) is used to translate forces between the rocket's localized Body Frame and the global coordinate system.
+- The Environment: Translational motion is integrated within the Earth-Centered Inertial (ECI) frame. The environment features a radial, altitude-dependent gravity model ($g(h)$) and a localized atmospheric model to calculate dynamic pressure, local speed of sound, and Mach number. Aerodynamic coefficients ($C_D, C_N$, Center of Pressure) are pulled dynamically via 2D Bilinear Interpolation from Saturn V wind-tunnel lookup tables.
