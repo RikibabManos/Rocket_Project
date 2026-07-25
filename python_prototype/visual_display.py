@@ -7,6 +7,7 @@ from mpl_toolkits.mplot3d import Axes3D  # REQUIRED for older versions
 from State_variable import RK4_new_state
 from State_variable import get_dry_CoM_dist_centre as start_dist
 from State_variable import body_to_ecif as b2eci
+from State_variable import ecif_to_body
 
 from Environment import get_true_altitude
 from Environment import get_atmosphere
@@ -34,7 +35,7 @@ steps_per_frame = 100  # How many physics steps to calculate before drawing 1 fr
 # (500 steps * 0.01s = 5 seconds of simulated flight per visual frame)
 
 current_time = 0.0 # Start exactly at 0
-v_wind = np.array([0.0, 0.0, 0.0]) # wind speed
+v_wind = np.array([0.0, 1.0, 0.0]) # wind speed
 
 earth_rad_launch = 6378137.0
 dry_CoG_launch = np.array( [start_dist(earth_rad_launch), 0.0, 0.0] )
@@ -134,6 +135,10 @@ ax_3d_vis.legend()
 
 # --- 1. Simulation & Pause State Variables ---
 is_paused = False
+# define pitch and yaw pid controllers here, outside of update function so memory for integral controller is not wiped
+# max thrust engine angle = 15 degrees
+pitch_pid = pidc(kp, ki, kd, 0, 0.2618, -0.2618) 
+yaw_pid = pidc(kp, ki, kd, 0, 0.2618, -0.2618)
 
 # --- 2. Keypress Event Handler Function ---
 def on_key_press(event):
@@ -177,29 +182,35 @@ def update(frame):
 
     """ Returns required values for all animations """
 
-    global current_time, current_state, ani   # Use global so they persist between frames
-
-    global is_paused
+    global current_time, current_state, ani, is_paused   # Use global so they persist between frames
 
     if is_paused:
-        return trajectory_line, current_pos_dot, alt_line, mach_line, am_line  # Keep current frame frozen
+        return trajectory_line, current_pos_dot, alt_line, mach_line, am_line, ax_ori  # Keep current frame frozen
 
     for _ in range(steps_per_frame):
         # Step the physics engine forward
         current_time += time_interval
 
-        # define pitch and yaw pid controllers here 
-        # max thrust engine angle = 15 degrees
-        pitch_pid = pidc(kp, ki, kd, 0, 0.2618, -0.2618) 
-        yaw_pid = pidc(kp, ki, kd, 0, 0.2618, -0.2618)
-        
-        current_state_info = RK4_new_state(current_time, current_state, time_interval, mfr, m_rocket_dry, m_fuel_max, v_wind, pitch_pid, yaw_pid)
-        current_state = current_state_info[0]
+        # define variables for PID pre new state calculation
+        current_position = current_state[0:3]
+        ori = current_state[6:10] # quaternion orientation
 
-        alt = get_true_altitude(current_state[0:3])
+        #  PID controller for pitch and yaw angles
+        up_eci = current_position / np.linalg.norm(current_position) # unit radial vector, in rocket's perspective this always points straight 'up', hence is 'target'
+        up_body = ecif_to_body(up_eci, ori) #  convert target to rocket's body frame
+        yaw_error = np.arctan2(up_body[1], up_body[0])   # Deviation in the XY plane (v_y, v_x)
+        pitch_error = np.arctan2(up_body[2], up_body[0]) # Deviation in the XZ plane (v_z, v_x)
+
+        pitch_angle = pitch_pid.correction(pitch_error, time_interval)
+        yaw_angle = yaw_pid.correction(yaw_error, time_interval)
+
+        current_state_info = RK4_new_state(current_time, current_state, time_interval, mfr, m_rocket_dry, m_fuel_max, v_wind, pitch_angle, yaw_angle)
+        current_state = current_state_info[0]
+        current_position = current_state[0:3]
+        current_vel = current_state[3:6]
+        alt = get_true_altitude(current_position)
 
         # calculation of current speed and conversion to mach
-        current_vel = current_state[3:6]
         current_vel_mag = np.linalg.norm(current_vel)
         current_vel_mach = current_vel_mag
         _, _, temperature = get_atmosphere(alt)
@@ -223,7 +234,6 @@ def update(frame):
 
     # orientation calculations
     up_eci = current_state[0:3] / np.linalg.norm(current_state[0:3]) # radial vector, in rocket's perspective this always points straight 'up'
-    ori = current_state[6:10] # quaternion orientation
     nose_ori_bf = np.array([1.0, 0.0, 0.0]) # vector aligned with nose cone in rocket body frame
     nose_ori_eci = b2eci(nose_ori_bf, ori) # vector aligned with nose cone in ecif
     north_pole_eci = np.array([0.0, 0.0, 1.0]) # north vector defined along z axis in ecif
