@@ -28,7 +28,7 @@ The Python-based Mission Control dashboard reads the telemetry data and provides
 -IDE Terminal: A live feed of quantities crutial to track (Time, Fuel Mass, Total Mass and Altitude)
 
 4. Usage of Code
-Important to run code correctly!
+(Important to run code correctly!)
 
 -Make sure all .py files are in the same folder
 
